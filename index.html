@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>A股尾盘筛选器</title>
+    <style>
+      :root {
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: #1f2937;
+        background: #f5f7fb;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+      }
+      .container {
+        max-width: 1080px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 8px 24px rgba(31, 41, 55, 0.08);
+      }
+      h1 {
+        margin-top: 0;
+        margin-bottom: 12px;
+      }
+      .desc {
+        color: #4b5563;
+        line-height: 1.6;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 12px;
+        margin: 16px 0;
+      }
+      .card {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 12px;
+        background: #fafafa;
+      }
+      label {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 220px;
+        resize: vertical;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        padding: 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+      }
+      button {
+        background: #2563eb;
+        border: none;
+        color: #fff;
+        padding: 10px 18px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      .msg {
+        margin: 12px 0;
+        font-size: 14px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+      }
+      th, td {
+        text-align: left;
+        padding: 10px 8px;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 14px;
+      }
+      th {
+        background: #f3f4f6;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 12px;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>A 股尾盘策略筛选网页</h1>
+      <p class="desc">
+        将股票数据（JSON 数组）粘贴到下方，点击“执行筛选”。
+        页面会按照你给出的条件过滤并展示：股票代码、股票名称、涨幅、量比、换手率、5 日均线、10 日均线。
+      </p>
+
+      <div class="grid">
+        <section class="card">
+          <h3>当日环境条件</h3>
+          <label><input id="marketStable" type="checkbox" checked /> 14:50-15:00 大盘平稳无跳水</label>
+          <label><input id="isFriday" type="checkbox" /> 今日是周五（若勾选将不出结果）</label>
+          <label><input id="isPreHoliday" type="checkbox" /> 今日是节前交易日（若勾选将不出结果）</label>
+        </section>
+
+        <section class="card">
+          <h3>数据格式说明</h3>
+          <p class="muted">
+            每个股票对象需包含：
+            code, name, market, board, isST, isDelisted, pctChange, volumeRatio, tailVolumeMild,
+            turnoverRate, close, ma5, ma10, tailSpike, longUpperShadow, badNews, unlockSoon。
+          </p>
+        </section>
+      </div>
+
+      <label for="inputData">股票 JSON 数据</label>
+      <textarea id="inputData">[
+  {
+    "code": "000001",
+    "name": "平安银行",
+    "market": "A",
+    "board": "main",
+    "isST": false,
+    "isDelisted": false,
+    "pctChange": 3.62,
+    "volumeRatio": 1.73,
+    "tailVolumeMild": true,
+    "turnoverRate": 6.8,
+    "close": 11.23,
+    "ma5": 11.02,
+    "ma10": 10.88,
+    "tailSpike": false,
+    "longUpperShadow": false,
+    "badNews": false,
+    "unlockSoon": false
+  },
+  {
+    "code": "688001",
+    "name": "科创示例",
+    "market": "A",
+    "board": "star",
+    "isST": false,
+    "isDelisted": false,
+    "pctChange": 4.1,
+    "volumeRatio": 2.1,
+    "tailVolumeMild": true,
+    "turnoverRate": 7.1,
+    "close": 20.3,
+    "ma5": 19.9,
+    "ma10": 19.5,
+    "tailSpike": false,
+    "longUpperShadow": false,
+    "badNews": false,
+    "unlockSoon": false
+  }
+]</textarea>
+
+      <div style="margin-top: 12px">
+        <button id="runBtn">执行筛选</button>
+      </div>
+      <p id="message" class="msg"></p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>股票代码</th>
+            <th>股票名称</th>
+            <th>涨幅(%)</th>
+            <th>量比</th>
+            <th>换手率(%)</th>
+            <th>5 日均线</th>
+            <th>10 日均线</th>
+          </tr>
+        </thead>
+        <tbody id="resultBody"></tbody>
+      </table>
+    </main>
+
+    <script>
+      const input = document.getElementById('inputData');
+      const runBtn = document.getElementById('runBtn');
+      const msg = document.getElementById('message');
+      const resultBody = document.getElementById('resultBody');
+
+      function isQualified(stock, context) {
+        const baseFilter =
+          stock.market === 'A' &&
+          !stock.isST &&
+          !stock.isDelisted &&
+          stock.board !== 'star' &&
+          stock.board !== 'bse';
+
+        const intradayFilter =
+          stock.pctChange >= 3 &&
+          stock.pctChange <= 5 &&
+          stock.volumeRatio >= 1.5 &&
+          stock.tailVolumeMild === true &&
+          stock.turnoverRate >= 5 &&
+          stock.turnoverRate <= 10 &&
+          stock.close > stock.ma5 &&
+          stock.close > stock.ma10;
+
+        const excludeFilter =
+          !stock.tailSpike &&
+          !stock.longUpperShadow &&
+          !stock.badNews &&
+          !stock.unlockSoon &&
+          !context.isFriday &&
+          !context.isPreHoliday;
+
+        return baseFilter && intradayFilter && excludeFilter && context.marketStable;
+      }
+
+      function renderRows(list) {
+        resultBody.innerHTML = '';
+        if (!list.length) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td colspan="7" style="text-align:center;color:#6b7280">无符合条件的股票</td>';
+          resultBody.appendChild(tr);
+          return;
+        }
+
+        list.forEach((item) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${item.code}</td>
+            <td>${item.name}</td>
+            <td>${item.pctChange.toFixed(2)}</td>
+            <td>${item.volumeRatio.toFixed(2)}</td>
+            <td>${item.turnoverRate.toFixed(2)}</td>
+            <td>${item.ma5.toFixed(2)}</td>
+            <td>${item.ma10.toFixed(2)}</td>
+          `;
+          resultBody.appendChild(tr);
+        });
+      }
+
+      runBtn.addEventListener('click', () => {
+        const context = {
+          marketStable: document.getElementById('marketStable').checked,
+          isFriday: document.getElementById('isFriday').checked,
+          isPreHoliday: document.getElementById('isPreHoliday').checked,
+        };
+
+        try {
+          const data = JSON.parse(input.value);
+          if (!Array.isArray(data)) {
+            throw new Error('JSON 顶层必须是数组');
+          }
+
+          const result = data.filter((stock) => isQualified(stock, context));
+          renderRows(result);
+          msg.textContent = `筛选完成，共 ${result.length} 只股票符合条件。`;
+          msg.style.color = '#065f46';
+        } catch (err) {
+          resultBody.innerHTML = '';
+          msg.textContent = `解析失败：${err.message}`;
+          msg.style.color = '#b91c1c';
+        }
+      });
+
+      runBtn.click();
+    </script>
+  </body>
+</html>
